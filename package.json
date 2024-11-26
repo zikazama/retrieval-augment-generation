@@ -1,0 +1,21 @@
+{
+  "name": "retrieval-agument-generation",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@langchain/community": "^0.3.16",
+    "@langchain/core": "^0.3.19",
+    "@langchain/groq": "^0.1.2",
+    "@langchain/ollama": "^0.1.2",
+    "@langchain/openai": "^0.3.14",
+    "chromadb": "^1.9.4",
+    "dotenv": "^16.4.5"
+  }
+}
