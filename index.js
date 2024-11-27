@@ -91,12 +91,7 @@ async function addDocumentsToChroma() {
 }
 
 addDocumentsToChroma().then(() => {
-  const retriever = vectorStore.asRetriever(
-    {
-      filter: { source: "https://example.com" },
-      k: 2,
-    }
-  );
+  const retriever = vectorStore.asRetriever();
 
   const standaloneQuestionChain = RunnableSequence.from([
     {
