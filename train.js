@@ -1,84 +1,49 @@
 const fs = require("fs");
 const path = require("path");
-const pdfParse = require("pdf-parse");
-const dotenv = require("dotenv");
-dotenv.config();
+const { PDFLoader } = require("langchain/document_loaders");
+const { RecursiveCharacterTextSplitter } = require("langchain/text_splitters");
+const { OllamaEmbeddings } = require("langchain/embeddings");
+const { Chroma } = require("langchain/vectorstores");
 
-const { OllamaEmbeddings } = require("@langchain/community/embeddings/ollama");
-const { Chroma } = require("@langchain/community/vectorstores/chroma");
-const { Document } = require("@langchain/core/documents");
+// Function to load and split documents in a folder
+const loadAndSplitDocsInFolder = async (folderPath) => {
+  // Get all files in the folder
+  const files = fs.readdirSync(folderPath).filter((file) => file.endsWith(".pdf"));
+  let allSplits = [];
 
-// Initialize embeddings and ChromaDB
-const embeddings = new OllamaEmbeddings({
-  model: "llama3.2", // Specify the embedding model
-  baseUrl: "http://localhost:11434", // Default local Ollama server
-});
+  for (const file of files) {
+    const filePath = path.join(folderPath, file);
 
-const vectorStore = new Chroma(embeddings, {
-  collectionName: "cv-knowledge-collection",
-  url: "http://localhost:8000", // ChromaDB server URL
-  collectionMetadata: { "hnsw:space": "cosine" },
-});
+    console.log(`Processing file: ${filePath}`);
 
-// Function to extract text from a PDF
-async function extractTextFromPdf(pdfPath) {
-  const dataBuffer = fs.readFileSync(pdfPath);
-  const pdfData = await pdfParse(dataBuffer);
-  return pdfData.text; // Extracted text
-}
+    // Load the PDF
+    const loader = new PDFLoader(filePath);
+    const docs = await loader.load();
 
-// Function to split text into chunks
-function splitTextIntoChunks(text, chunkSize = 500) {
-  const words = text.split(/\s+/);
-  const chunks = [];
-  for (let i = 0; i < words.length; i += chunkSize) {
-    chunks.push(words.slice(i, i + chunkSize).join(" "));
-  }
-  return chunks;
-}
+    // Split the documents into chunks
+    const textSplitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 600, // Set chunk size
+      chunkOverlap: 0, // No overlap
+    });
+    const splits = await textSplitter.splitDocuments(docs);
 
-// Function to process a single PDF
-async function processPdf(pdfPath) {
-  console.log(`Processing: ${pdfPath}`);
-
-  // Step 1: Extract text from PDF
-  const text = await extractTextFromPdf(pdfPath);
-
-  // Step 2: Split text into chunks
-  const chunks = splitTextIntoChunks(text);
-
-  // Step 3: Convert chunks into Document format
-  const documents = chunks.map(
-    (chunk, idx) =>
-      new Document({
-        pageContent: chunk,
-        metadata: { source: pdfPath, chunkIndex: idx },
-      })
-  );
-
-  // Step 4: Store in ChromaDB
-  const ids = documents.map((_, idx) => `${pdfPath}_chunk_${idx}`);
-  await vectorStore.addDocuments(documents, { ids });
-
-  console.log(`Finished processing: ${pdfPath}`);
-}
-
-// Function to process a directory of PDFs
-async function processPdfDirectory(pdfDir) {
-  const pdfFiles = fs.readdirSync(pdfDir).filter((file) => file.endsWith(".pdf"));
-
-  for (const pdfFile of pdfFiles) {
-    const pdfPath = path.join(pdfDir, pdfFile);
-    await processPdf(pdfPath);
+    // Combine all splits
+    allSplits = allSplits.concat(splits);
   }
 
-  console.log("All PDFs processed successfully.");
-}
+  console.log(`Total splits created: ${allSplits.length}`);
+  return allSplits;
+};
 
-// Main Execution
-(async () => {
-  // Step 1: Process PDFs
-  const pdfDir = "./files"; // Path to your PDFs
-  await processPdfDirectory(pdfDir);
+// Function to save splits into a ChromaDB vector store
+const vectorSave = async (splits) => {
+  const embeddings = new OllamaEmbeddings();
 
-})();
+  // Initialize Chroma DB
+  await Chroma.fromDocuments(splits, embeddings, {
+    collectionName: "test-cv", // Replace with your preferred collection name
+    persistDirectory: "./vector_store", // Directory for persistent storage
+  });
+
+  console.log("Data saved to ChromaDB.");
+};
